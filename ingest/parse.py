@@ -1,4 +1,5 @@
 import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +18,9 @@ _HEADING = re.compile(
     r"|(CHAPTER|Chapter|BOOK|Book|PART|Part|SECTION|Section|MEDITATION|Meditation)\s+[IVXLCDM\d]+\b.*)$"
 )
 _MAX_HEADING_CHARS = 120
+# ponytail: contents entries are spotted by a right-aligned page number; dot
+# leaders ("Introductory ....... 1") aren't matched, add them when a text needs it.
+_CONTENTS_ENTRY = re.compile(r"\S\s{2,}\d+$")
 
 
 def _strip_gutenberg(text: str) -> str:
@@ -27,19 +31,25 @@ def _strip_gutenberg(text: str) -> str:
 
 def parse_text(text: str) -> list[Paragraph]:
     paragraphs: list[Paragraph] = []
-    section, index = "", 0
+    section = ""
+    counts: Counter[str] = Counter()  # per section, so front matter resumes after the contents
     for block in re.split(r"\n\s*\n", _strip_gutenberg(text)):
         joined = " ".join(block.split())
         if not joined:
             continue
-        first_line = block.strip().splitlines()[0].strip()
+        lines = block.strip().splitlines()
+        # A contents-page entry: drop it, and since the heading above it was a
+        # contents line too, fall back to front matter.
+        if _CONTENTS_ENTRY.search(lines[-1].rstrip()):
+            section = ""
+            continue
         # ponytail: heading = short block whose first line looks like a heading; a
         # short paragraph like "Part II of the argument..." would be misread.
-        if len(joined) <= _MAX_HEADING_CHARS and _HEADING.match(first_line):
-            section, index = joined.lstrip("# ").rstrip("."), 0
+        if len(joined) <= _MAX_HEADING_CHARS and _HEADING.match(lines[0].strip()):
+            section = joined.lstrip("# ").rstrip(".")
             continue
-        index += 1
-        paragraphs.append(Paragraph(joined, section, index))
+        counts[section] += 1
+        paragraphs.append(Paragraph(joined, section, counts[section]))
     return paragraphs
 
 
