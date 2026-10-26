@@ -1,17 +1,8 @@
 import json
-import os
-from pathlib import Path
-
-import psycopg
-import pytest
 
 from core import config
 from ingest.pipeline import ingest_dir
 
-TEST_DB = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql://courselens:courselens@localhost:5432/courselens_test"
-)
-SCHEMA = Path(__file__).parent.parent / "db" / "01-schema.sql"
 TEXT = "CHAPTER I.\n\nFirst paragraph about liberty.\n\nSecond paragraph about harm."
 LICENSED = {
     "liberty.txt": {
@@ -20,18 +11,6 @@ LICENSED = {
         "license": "Public domain",
     }
 }
-
-
-@pytest.fixture
-def conn():
-    try:
-        conn = psycopg.connect(TEST_DB, autocommit=True)
-    except psycopg.OperationalError:
-        pytest.skip("test DB not reachable; run `docker compose up -d --wait`")
-    conn.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
-    conn.execute(SCHEMA.read_text())
-    yield conn
-    conn.close()
 
 
 def fake_embed(texts):
