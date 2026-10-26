@@ -38,6 +38,25 @@ def test_tracks_sections_and_resets_paragraph_index():
     ]
 
 
+def test_contents_page_entries_are_skipped():
+    text = (
+        "Preface.\n\n"
+        "CONTENTS.\n\n"
+        "CHAPTER I.\n                PAGE\nINTRODUCTORY      1\n\n"
+        "CHAPTER II.\n\n"
+        "OF THE LIBERTY OF THOUGHT\nAND DISCUSSION      28\n\n"
+        "An epigraph.\n\n"
+        "CHAPTER I.\n\n"
+        "First para."
+    )
+    assert [(p.section, p.index, p.text) for p in parse_text(text)] == [
+        ("", 1, "Preface."),
+        ("", 2, "CONTENTS."),
+        ("", 3, "An epigraph."),
+        ("CHAPTER I", 1, "First para."),
+    ]
+
+
 def test_markdown_headings_are_sections():
     text = "# Week 3: Kant\n\nThe categorical imperative."
     assert parse_text(text) == [Paragraph("The categorical imperative.", "Week 3: Kant", 1)]
