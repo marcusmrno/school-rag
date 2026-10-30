@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from itertools import groupby
 
 from ingest.parse import Paragraph
+from ingest.slides import Slide
 
 TARGET_TOKENS = 400
 
@@ -62,4 +63,16 @@ def chunk_prose(paragraphs: list[Paragraph], target: int = TARGET_TOKENS) -> lis
                 buf.append(piece)
         if buf:
             chunks.append(_make(buf))
+    return chunks
+
+
+def chunk_slides(deck_title: str, slides: list[Slide]) -> list[Chunk]:
+    """One chunk per slide; image-only slides (no title, no body) are dropped."""
+    chunks = []
+    for s in slides:
+        if not (s.title.strip() or s.body.strip()):
+            continue
+        head = "\n".join(filter(None, [deck_title, s.title]))
+        content = (head + "\n\n" + s.body).rstrip()
+        chunks.append(Chunk(content, f"slide {s.number}", "slide", count_tokens(content)))
     return chunks

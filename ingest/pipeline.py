@@ -8,12 +8,13 @@ import psycopg
 
 from core import config
 from core.db import to_vector
-from ingest.chunk import chunk_prose
+from ingest.chunk import chunk_prose, chunk_slides
 from ingest.parse import parse_file
+from ingest.slides import parse_pdf_slides
 
 log = logging.getLogger(__name__)
 
-SUPPORTED = {".txt", ".md"}
+SUPPORTED = {".txt", ".md", ".pdf"}
 Embed = Callable[[list[str]], list[list[float]]]
 
 
@@ -25,7 +26,11 @@ def _load_sources(directory: Path) -> dict:
 def ingest_file(conn: psycopg.Connection, path: Path, course: str, meta: dict, embed: Embed) -> int:
     if config.MODE == "public" and not meta.get("license"):
         raise ValueError("public mode requires a license in sources.json")
-    chunks = chunk_prose(parse_file(path))
+    title = meta.get("title", path.stem)
+    if path.suffix.lower() == ".pdf":
+        chunks = chunk_slides(title, parse_pdf_slides(path))
+    else:
+        chunks = chunk_prose(parse_file(path))
     if not chunks:
         raise ValueError("no text found")
     vectors = embed([c.content for c in chunks])
@@ -36,7 +41,7 @@ def ingest_file(conn: psycopg.Connection, path: Path, course: str, meta: dict, e
         doc_id = conn.execute(
             "INSERT INTO documents (course, title, source_path, source_url, license)"
             " VALUES (%s, %s, %s, %s, %s) RETURNING id",
-            (course, meta.get("title", path.stem), source_path, meta.get("source_url"), meta.get("license")),
+            (course, title, source_path, meta.get("source_url"), meta.get("license")),
         ).fetchone()[0]
         with conn.cursor() as cur:
             cur.executemany(
