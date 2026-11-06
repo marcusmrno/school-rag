@@ -1,0 +1,1 @@
+ocw-lec02-sample.pdf: pages 2, 20, 38, 39 of MIT 6.100L Fall 2022, Lecture 2 (Ana Bell), https://ocw.mit.edu/courses/6-100l-introduction-to-cs-and-programming-using-python-fall-2022/, CC BY-NC-SA 4.0

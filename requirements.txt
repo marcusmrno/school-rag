@@ -6,3 +6,4 @@ python-dotenv
 pytest
 httpx
 anthropic>=2,<3
+pypdf>=6,<7

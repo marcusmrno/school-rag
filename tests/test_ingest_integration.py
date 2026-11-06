@@ -1,8 +1,11 @@
 import json
+import shutil
+from pathlib import Path
 
 from core import config
 from ingest.pipeline import ingest_dir
 
+FIXTURE = Path(__file__).parent / "fixtures" / "ocw-lec02-sample.pdf"
 TEXT = "CHAPTER I.\n\nFirst paragraph about liberty.\n\nSecond paragraph about harm."
 LICENSED = {
     "liberty.txt": {
@@ -19,7 +22,6 @@ def fake_embed(texts):
 
 def make_corpus(directory, sources):
     (directory / "liberty.txt").write_text(TEXT)
-    (directory / "slides.pdf").write_bytes(b"%PDF-not-supported-yet")
     (directory / "sources.json").write_text(json.dumps(sources))
     return directory
 
@@ -63,3 +65,23 @@ def test_private_mode_allows_missing_license(conn, tmp_path, monkeypatch):
 
     assert (total, skipped) == (1, [])
     assert conn.execute("SELECT title FROM documents").fetchone() == ("liberty",)
+
+
+def test_ingests_slide_pdf_with_slide_locations(conn, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "MODE", "public")
+    shutil.copy(FIXTURE, tmp_path / "lec02.pdf")
+    (tmp_path / "sources.json").write_text(json.dumps({"lec02.pdf": {"title": "Lecture 2", "license": "CC BY-NC-SA 4.0"}}))
+    assert ingest_dir(conn, tmp_path, "CPSC", fake_embed) == (4, [])
+    rows = conn.execute("SELECT location, content_type, content FROM chunks ORDER BY id").fetchall()
+    assert [r[0] for r in rows] == ["slide 1", "slide 2", "slide 3", "slide 4"]
+    assert {r[1] for r in rows} == {"slide"}
+    assert rows[1][2].startswith("Lecture 2\nINPUT\n\n")
+
+
+def test_broken_pdf_is_skipped_not_fatal(conn, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "MODE", "public")
+    corpus = make_corpus(tmp_path, {**LICENSED, "broken.pdf": {"license": "x"}})
+    (corpus / "broken.pdf").write_bytes(b"%PDF-1.4 not really")
+    total, skipped = ingest_dir(conn, corpus, "PHIL", fake_embed)
+    assert total == 1
+    assert [name for name, _ in skipped] == ["broken.pdf"]

@@ -1,5 +1,6 @@
-from ingest.chunk import chunk_prose, count_tokens
+from ingest.chunk import chunk_prose, chunk_slides, count_tokens
 from ingest.parse import Paragraph
+from ingest.slides import Slide
 
 WORDS = ("word " * 8).strip()  # 39 chars ≈ 9 tokens
 
@@ -38,3 +39,15 @@ def test_long_paragraph_splits_on_sentences():
 
 def test_empty_input_gives_no_chunks():
     assert chunk_prose([]) == []
+
+
+def test_slide_chunk_prepends_deck_and_slide_title():
+    [c] = chunk_slides("Lecture 2", [Slide(3, "Loops", "for i in x:\n    print(i)")])
+    assert c.content == "Lecture 2\nLoops\n\nfor i in x:\n    print(i)"
+    assert (c.location, c.content_type) == ("slide 3", "slide")
+    assert c.token_count == count_tokens(c.content)
+
+
+def test_slide_without_text_gives_no_chunk():
+    chunks = chunk_slides("Deck", [Slide(1, "", ""), Slide(2, "Title only", "")])
+    assert [c.location for c in chunks] == ["slide 2"]
