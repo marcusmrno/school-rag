@@ -56,7 +56,7 @@ def answer(question: str, chunks: list[ScoredChunk], client=None) -> Answer:
         max_tokens=16000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user}],
-        # ponytail: low effort for the 6 s latency target; tune in the week 5 evals.
+        # ponytail: low effort for the 6 s latency target; tune once retrieval evals exist.
         output_config={"effort": "low"},
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",

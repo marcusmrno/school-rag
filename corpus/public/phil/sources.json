@@ -3,5 +3,20 @@
     "title": "On Liberty (John Stuart Mill)",
     "source_url": "https://www.gutenberg.org/ebooks/34901",
     "license": "Public domain in the USA (Project Gutenberg)"
+  },
+  "utilitarianism.txt": {
+    "title": "Utilitarianism (John Stuart Mill)",
+    "source_url": "https://www.gutenberg.org/ebooks/11224",
+    "license": "Public domain in the USA (Project Gutenberg)"
+  },
+  "discourse-on-method.txt": {
+    "title": "Discourse on the Method (René Descartes)",
+    "source_url": "https://www.gutenberg.org/ebooks/59",
+    "license": "Public domain in the USA (Project Gutenberg)"
+  },
+  "hume-enquiry.txt": {
+    "title": "An Enquiry Concerning Human Understanding (David Hume)",
+    "source_url": "https://www.gutenberg.org/ebooks/9662",
+    "license": "Public domain in the USA (Project Gutenberg)"
   }
 }

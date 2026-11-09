@@ -1,0 +1,17 @@
+{
+  "frankenstein.txt": {
+    "title": "Frankenstein (Mary Shelley)",
+    "source_url": "https://www.gutenberg.org/ebooks/84",
+    "license": "Public domain in the USA (Project Gutenberg)"
+  },
+  "heart-of-darkness.txt": {
+    "title": "Heart of Darkness (Joseph Conrad)",
+    "source_url": "https://www.gutenberg.org/ebooks/219",
+    "license": "Public domain in the USA (Project Gutenberg)"
+  },
+  "jekyll-and-hyde.txt": {
+    "title": "Strange Case of Dr Jekyll and Mr Hyde (Robert Louis Stevenson)",
+    "source_url": "https://www.gutenberg.org/ebooks/43",
+    "license": "Public domain in the USA (Project Gutenberg)"
+  }
+}
