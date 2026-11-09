@@ -10,11 +10,11 @@ from core import config
 from core.db import to_vector
 from ingest.chunk import chunk_prose, chunk_slides
 from ingest.parse import parse_file
-from ingest.slides import parse_pdf_slides
+from ingest.slides import parse_pdf_slides, parse_pptx_slides
 
 log = logging.getLogger(__name__)
 
-SUPPORTED = {".txt", ".md", ".pdf"}
+SUPPORTED = {".txt", ".md", ".pdf", ".pptx"}
 Embed = Callable[[list[str]], list[list[float]]]
 
 
@@ -27,8 +27,11 @@ def ingest_file(conn: psycopg.Connection, path: Path, course: str, meta: dict, e
     if config.MODE == "public" and not meta.get("license"):
         raise ValueError("public mode requires a license in sources.json")
     title = meta.get("title", path.stem)
-    if path.suffix.lower() == ".pdf":
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
         chunks = chunk_slides(title, parse_pdf_slides(path))
+    elif suffix == ".pptx":
+        chunks = chunk_slides(title, parse_pptx_slides(path))
     else:
         chunks = chunk_prose(parse_file(path))
     if not chunks:

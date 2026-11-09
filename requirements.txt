@@ -7,3 +7,4 @@ pytest
 httpx
 anthropic>=2,<3
 pypdf>=6,<7
+python-pptx>=1,<2

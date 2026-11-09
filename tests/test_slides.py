@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ingest.slides import parse_pdf_slides
+from ingest.slides import parse_pdf_slides, parse_pptx_slides
 
 FIXTURE = Path(__file__).parent / "fixtures" / "ocw-lec02-sample.pdf"
 
@@ -26,3 +26,17 @@ def test_pdf_keeps_code_indentation():
 def test_pdf_repairs_split_words():
     body = parse_pdf_slides(FIXTURE)[2].body
     assert "has a value" in body and "valu e" not in body
+
+
+def test_pptx_title_and_bullet_levels(pptx_deck):
+    s = parse_pptx_slides(pptx_deck)[0]
+    assert (s.number, s.title, s.body) == (1, "Loops", "First point\n  Sub point")
+
+
+def test_pptx_keeps_code_indentation(pptx_deck):
+    assert parse_pptx_slides(pptx_deck)[1].body == "for i in range(3):\n    print(i)"
+
+
+def test_pptx_slide_without_title(pptx_deck):
+    s = parse_pptx_slides(pptx_deck)[2]
+    assert (s.title, s.body) == ("", "No title here")
