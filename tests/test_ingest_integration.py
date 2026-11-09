@@ -78,6 +78,14 @@ def test_ingests_slide_pdf_with_slide_locations(conn, tmp_path, monkeypatch):
     assert rows[1][2].startswith("Lecture 2\nINPUT\n\n")
 
 
+def test_ingests_pptx_deck(conn, pptx_deck, monkeypatch):
+    monkeypatch.setattr(config, "MODE", "public")
+    (pptx_deck.parent / "sources.json").write_text(json.dumps({"deck.pptx": {"license": "CC BY 4.0"}}))
+    assert ingest_dir(conn, pptx_deck.parent, "CPSC", fake_embed) == (3, [])
+    locations = [r[0] for r in conn.execute("SELECT location FROM chunks ORDER BY id").fetchall()]
+    assert locations == ["slide 1", "slide 2", "slide 3"]
+
+
 def test_broken_pdf_is_skipped_not_fatal(conn, tmp_path, monkeypatch):
     monkeypatch.setattr(config, "MODE", "public")
     corpus = make_corpus(tmp_path, {**LICENSED, "broken.pdf": {"license": "x"}})

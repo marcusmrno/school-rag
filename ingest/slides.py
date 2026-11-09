@@ -3,6 +3,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from pptx import Presentation
 from pypdf import PdfReader
 
 
@@ -57,3 +58,23 @@ def parse_pdf_slides(path: Path) -> list[Slide]:
         title = _norm(first[0]) if first else ""
         slides.append(Slide(number, title, _body(lines, title, boiler)))
     return slides
+
+
+def _pptx_body(slide) -> str:
+    lines = []
+    for shape in slide.shapes:
+        if shape.has_text_frame and shape != slide.shapes.title:
+            for p in shape.text_frame.paragraphs:
+                text = p.text.replace("\x0b", "\n")  # soft line break
+                if text.strip():
+                    lines.append("  " * p.level + text)
+    return "\n".join(lines)
+
+
+def parse_pptx_slides(path: Path) -> list[Slide]:
+    # ponytail: tables, grouped shapes and speaker notes aren't read.
+    slides = Presentation(path).slides
+    return [
+        Slide(n, s.shapes.title.text_frame.text.strip() if s.shapes.title else "", _pptx_body(s))
+        for n, s in enumerate(slides, 1)
+    ]
