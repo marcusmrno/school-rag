@@ -39,7 +39,7 @@ def test_ask_returns_answer_with_citations(calls):
     assert (c["n"], c["chunk_id"], c["location"]) == (2, 2, "CHAPTER I, ¶ 2")
     assert [h["vector_rank"] for h in body["debug"]["retrieved"]] == [1, 2]
     assert set(body["debug"]["retrieved"][0]) == {
-        "chunk_id", "vector_rank", "vector_score", "keyword_rank", "keyword_score", "rrf"}
+        "chunk_id", "title", "location", "vector_rank", "vector_score", "keyword_rank", "keyword_score", "rrf"}
     assert set(body["debug"]["timings_ms"]) == {"search", "generate"}
 
 
@@ -63,6 +63,25 @@ def test_not_found_returns_message_and_no_citations(calls, monkeypatch):
     assert body["citations"] == []
     assert body["found"] is False
     assert len(body["debug"]["retrieved"]) == 2
+
+
+def test_not_found_returns_nearest_sources(calls, monkeypatch):
+    monkeypatch.setattr(main, "search", lambda *a, **kw: [chunk(i) for i in range(1, 6)])
+    monkeypatch.setattr(main, "answer", lambda q, chunks: Answer("", False, []))
+    body = post({"question": "q"}).json()
+    assert [s["n"] for s in body["nearest"]] == [1, 2, 3]
+    assert body["nearest"][0]["location"] == "CHAPTER I, ¶ 1"
+    assert set(body["nearest"][0]) == {
+        "n", "chunk_id", "title", "location", "course", "source_url", "excerpt"}
+
+
+def test_found_has_no_nearest(calls):
+    assert post({"question": "q"}).json()["nearest"] == []
+
+
+def test_retrieved_carries_title_and_location(calls):
+    hit = post({"question": "q"}).json()["debug"]["retrieved"][0]
+    assert (hit["title"], hit["location"]) == ("On Liberty", "CHAPTER I, ¶ 1")
 
 
 def test_claude_failure_returns_503(calls, monkeypatch):

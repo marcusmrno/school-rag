@@ -12,11 +12,30 @@ type Citation = {
   excerpt: string;
 };
 
+type Retrieved = {
+  chunk_id: number;
+  title: string;
+  location: string;
+  vector_rank: number | null;
+  vector_score: number | null;
+  keyword_rank: number | null;
+  keyword_score: number | null;
+  rrf: number;
+};
+
 type AskResponse = {
   answer: string;
   found: boolean;
   citations: Citation[];
+  nearest: Citation[];
+  debug: { retrieved: Retrieved[] };
 };
+
+const rankCell = (
+  rank: number | null,
+  score: number | null,
+  format: (score: number) => string,
+) => (rank === null || score === null ? "–" : `${rank} (${format(score)})`);
 
 export default function Home() {
   const [question, setQuestion] = useState("");
@@ -102,6 +121,76 @@ export default function Home() {
                 </li>
               ))}
             </ul>
+          )}
+          {!result.found && result.nearest.length > 0 && (
+            <>
+              <h2>Closest sources I found</h2>
+              <ul>
+                {result.nearest.map((c) => (
+                  <li key={c.n}>
+                    {c.title}, {c.location}
+                    <br />
+                    {c.excerpt}
+                    {c.source_url && (
+                      <>
+                        {" "}
+                        <a href={c.source_url}>source</a>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {result.debug.retrieved.length > 0 && (
+            <details>
+              <summary>Why these sources?</summary>
+              <p>
+                Each passage was found by meaning (vector search), by matching
+                words (keyword search), or both. The two rankings are merged with
+                reciprocal rank fusion (RRF): a passage ranked high in either list
+                rises to the top, and the top 5 are sent to the model.
+              </p>
+              <table style={{ borderSpacing: "1rem 0.25rem" }}>
+                <caption>Retrieved passages</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Source</th>
+                    <th scope="col">Vector</th>
+                    <th scope="col">Keyword</th>
+                    <th scope="col">RRF</th>
+                    <th scope="col">Cited</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.debug.retrieved.map((r, i) => (
+                    <tr key={r.chunk_id}>
+                      <td>{i + 1}</td>
+                      <td>
+                        {r.title}, {r.location}
+                      </td>
+                      <td>
+                        {rankCell(r.vector_rank, r.vector_score, (s) =>
+                          s.toFixed(2),
+                        )}
+                      </td>
+                      <td>
+                        {rankCell(r.keyword_rank, r.keyword_score, (s) =>
+                          s.toPrecision(2),
+                        )}
+                      </td>
+                      <td>{r.rrf.toFixed(4)}</td>
+                      <td>
+                        {result.citations.some((c) => c.chunk_id === r.chunk_id)
+                          ? "✓"
+                          : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
           )}
         </>
       )}

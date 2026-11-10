@@ -18,6 +18,7 @@ app = FastAPI(title="CourseLens")
 
 NOT_FOUND = "I couldn't find this in the course material."
 EXCERPT_CHARS = 300
+NEAREST = 3
 
 
 class AskRequest(BaseModel):
@@ -37,6 +38,18 @@ def health():
 
 def _excerpt(content: str) -> str:
     return content[:EXCERPT_CHARS] + ("…" if len(content) > EXCERPT_CHARS else "")
+
+
+def _source(n: int, c) -> dict:
+    return {
+        "n": n,
+        "chunk_id": c.chunk_id,
+        "title": c.title,
+        "location": c.location,
+        "course": c.course,
+        "source_url": c.source_url,
+        "excerpt": _excerpt(c.content),
+    }
 
 
 @app.post("/ask")
@@ -59,23 +72,14 @@ def ask(req: AskRequest):
     return {
         "answer": result.text if result.found else NOT_FOUND,
         "found": result.found,
-        "citations": [
-            {
-                "n": n,
-                "chunk_id": c.chunk_id,
-                "title": c.title,
-                "location": c.location,
-                "course": c.course,
-                "source_url": c.source_url,
-                "excerpt": _excerpt(c.content),
-            }
-            for n in result.cited
-            for c in [chunks[n - 1]]
-        ],
+        "citations": [_source(n, chunks[n - 1]) for n in result.cited],
+        "nearest": [] if result.found else [_source(n, c) for n, c in enumerate(chunks[:NEAREST], 1)],
         "debug": {
             "retrieved": [
                 {
                     "chunk_id": c.chunk_id,
+                    "title": c.title,
+                    "location": c.location,
                     "vector_rank": c.vector_rank,
                     "vector_score": c.vector_score,
                     "keyword_rank": c.keyword_rank,
