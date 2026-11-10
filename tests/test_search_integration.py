@@ -1,7 +1,9 @@
 import pytest
+from pytest import approx
 
 from core.embeddings import embed_documents
 from ingest.pipeline import ingest_file
+import retrieval.search as rs
 from retrieval.search import search
 
 HARM = (
@@ -42,3 +44,48 @@ def test_course_with_no_chunks_returns_empty(corpus):
 
 def test_k_limits_results(corpus):
     assert len(search(corpus, "What is a base case?", k=1)) == 1
+
+
+def recursion_like(texts):  # stub query embedding: always the recursion text's vector
+    return embed_documents([RECURSION])
+
+
+def test_keyword_match_adds_keyword_rank(corpus):
+    results = search(corpus, "harm")
+    assert [r.title for r in results] == ["harm.txt", "recursion.txt"]
+    assert results[0].keyword_rank == 1 and results[0].keyword_score > 0
+    assert results[1].keyword_rank is None and results[1].keyword_score is None
+    assert results[0].rrf == approx(2 / 61)
+    assert results[1].rrf == approx(1 / 62)
+
+
+def test_keyword_match_overtakes_vector_order(corpus):
+    results = search(corpus, "harming other people", embed=recursion_like)
+    assert [r.title for r in results] == ["harm.txt", "recursion.txt"]
+    assert [r.vector_rank for r in results] == [2, 1]
+
+
+def test_keyword_only_match_is_returned(corpus, monkeypatch):
+    monkeypatch.setattr(rs, "CANDIDATES", 1)
+    results = search(corpus, "harming other people", embed=recursion_like)
+    harm = next(r for r in results if r.title == "harm.txt")
+    assert harm.vector_rank is None and harm.vector_score is None
+    assert harm.keyword_rank == 1 and "liberty" in harm.content
+
+
+def test_stopword_only_query_falls_back_to_vector(corpus):
+    results = search(corpus, "What is it?")
+    assert len(results) == 2
+    assert all(r.keyword_rank is None for r in results)
+    assert [r.vector_rank for r in results] == [1, 2]
+
+
+def test_punctuation_in_query_does_not_raise(corpus):
+    results = search(corpus, '"harm" -(OR & |!')
+    assert results[0].title == "harm.txt" and results[0].keyword_rank == 1
+
+
+def test_course_filter_applies_to_keyword(corpus):
+    results = search(corpus, "harm", course="CPSC")
+    assert [r.title for r in results] == ["recursion.txt"]
+    assert results[0].keyword_rank is None

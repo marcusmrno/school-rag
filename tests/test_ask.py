@@ -38,6 +38,8 @@ def test_ask_returns_answer_with_citations(calls):
     c = body["citations"][0]
     assert (c["n"], c["chunk_id"], c["location"]) == (2, 2, "CHAPTER I, ¶ 2")
     assert [h["vector_rank"] for h in body["debug"]["retrieved"]] == [1, 2]
+    assert set(body["debug"]["retrieved"][0]) == {
+        "chunk_id", "vector_rank", "vector_score", "keyword_rank", "keyword_score", "rrf"}
     assert set(body["debug"]["timings_ms"]) == {"search", "generate"}
 
 
