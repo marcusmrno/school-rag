@@ -1,0 +1,32 @@
+{
+  "mit6_100l_f22_lec02.pdf": {
+    "title": "6.100L Lecture 2: Strings, Input/Output, and Branching (MIT OCW)",
+    "source_url": "https://ocw.mit.edu/courses/6-100l-introduction-to-cs-and-programming-using-python-fall-2022/resources/mit6_100l_f22_lec02_pdf/",
+    "license": "CC BY-NC-SA 4.0 (MIT OpenCourseWare, Ana Bell)"
+  },
+  "mit6_100l_f22_lec03.pdf": {
+    "title": "6.100L Lecture 3: Iteration (MIT OCW)",
+    "source_url": "https://ocw.mit.edu/courses/6-100l-introduction-to-cs-and-programming-using-python-fall-2022/resources/mit6_100l_f22_lec03_pdf/",
+    "license": "CC BY-NC-SA 4.0 (MIT OpenCourseWare, Ana Bell)"
+  },
+  "mit6_100l_f22_lec07.pdf": {
+    "title": "6.100L Lecture 7: Decomposition, Abstraction, Functions (MIT OCW)",
+    "source_url": "https://ocw.mit.edu/courses/6-100l-introduction-to-cs-and-programming-using-python-fall-2022/resources/mit6_100l_f22_lec07_pdf/",
+    "license": "CC BY-NC-SA 4.0 (MIT OpenCourseWare, Ana Bell)"
+  },
+  "mit6_100l_f22_lec09.pdf": {
+    "title": "6.100L Lecture 9: Lambda Functions, Tuples and Lists (MIT OCW)",
+    "source_url": "https://ocw.mit.edu/courses/6-100l-introduction-to-cs-and-programming-using-python-fall-2022/resources/mit6_100l_f22_lec09_pdf/",
+    "license": "CC BY-NC-SA 4.0 (MIT OpenCourseWare, Ana Bell)"
+  },
+  "mit6_100l_f22_lec14.pdf": {
+    "title": "6.100L Lecture 14: Dictionaries (MIT OCW)",
+    "source_url": "https://ocw.mit.edu/courses/6-100l-introduction-to-cs-and-programming-using-python-fall-2022/resources/mit6_100l_f22_lec14_pdf/",
+    "license": "CC BY-NC-SA 4.0 (MIT OpenCourseWare, Ana Bell)"
+  },
+  "mit6_100l_f22_lec17.pdf": {
+    "title": "6.100L Lecture 17: Python Classes (MIT OCW)",
+    "source_url": "https://ocw.mit.edu/courses/6-100l-introduction-to-cs-and-programming-using-python-fall-2022/resources/mit6_100l_f22_lec17_pdf/",
+    "license": "CC BY-NC-SA 4.0 (MIT OpenCourseWare, Ana Bell)"
+  }
+}
