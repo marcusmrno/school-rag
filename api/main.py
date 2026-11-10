@@ -74,7 +74,14 @@ def ask(req: AskRequest):
         ],
         "debug": {
             "retrieved": [
-                {"chunk_id": c.chunk_id, "vector_rank": c.vector_rank, "vector_score": c.vector_score}
+                {
+                    "chunk_id": c.chunk_id,
+                    "vector_rank": c.vector_rank,
+                    "vector_score": c.vector_score,
+                    "keyword_rank": c.keyword_rank,
+                    "keyword_score": c.keyword_score,
+                    "rrf": c.rrf,
+                }
                 for c in chunks
             ],
             "timings_ms": {"search": round((t1 - t0) * 1000), "generate": round((t2 - t1) * 1000)},
