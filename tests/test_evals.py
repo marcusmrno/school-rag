@@ -87,7 +87,7 @@ def test_summarize_empty_group_is_none():
 
 
 def test_run_config_records_with_answers(monkeypatch):
-    chunks = [SimpleNamespace(chunk_id=1), SimpleNamespace(chunk_id=2)]
+    chunks = [SimpleNamespace(chunk_id=1, rerank=0.9), SimpleNamespace(chunk_id=2, rerank=0.1)]
     seen = []
     monkeypatch.setattr(er, "search", lambda conn, query, **kw: seen.append(kw) or chunks)
     monkeypatch.setattr(er.anthropic, "Anthropic", lambda **kw: None)  # no key needed
@@ -99,5 +99,12 @@ def test_run_config_records_with_answers(monkeypatch):
     recs = er.run_config(None, "vector", qs, {"a": {1}, "b": {1}}, answers=True)
     assert [r["cited_gold"] for r in recs] == [True, False]
     assert [r["rank"] for r in recs] == [1, 1]
-    assert set(recs[0]) == {"id", "course", "answerable", "rank", "search_ms", "found", "cited_gold", "total_ms"}
+    assert set(recs[0]) == {"id", "course", "answerable", "rank", "top_rerank", "search_ms", "found", "cited_gold", "total_ms"}
     assert all(kw == er.CONFIGS["vector"] for kw in seen)  # no course filter
+
+
+def test_record_for_question_with_no_chunks(monkeypatch):
+    monkeypatch.setattr(er, "search", lambda *a, **kw: [])
+    qs = [{"id": "q1", "course": "PHIL", "question": "?", "gold": []}]
+    [r] = er.run_config(None, "vector", qs, {"q1": set()}, answers=False)
+    assert r["rank"] is None and r["top_rerank"] is None

@@ -1,4 +1,5 @@
 import contextlib
+from dataclasses import replace
 
 import anthropic
 import httpx2
@@ -39,7 +40,7 @@ def test_ask_returns_answer_with_citations(calls):
     assert (c["n"], c["chunk_id"], c["location"]) == (2, 2, "CHAPTER I, ¶ 2")
     assert [h["vector_rank"] for h in body["debug"]["retrieved"]] == [1, 2]
     assert set(body["debug"]["retrieved"][0]) == {
-        "chunk_id", "title", "location", "vector_rank", "vector_score", "keyword_rank", "keyword_score", "rrf"}
+        "chunk_id", "title", "location", "vector_rank", "vector_score", "keyword_rank", "keyword_score", "rrf", "rerank"}
     assert set(body["debug"]["timings_ms"]) == {"search", "generate"}
 
 
@@ -77,6 +78,16 @@ def test_not_found_returns_nearest_sources(calls, monkeypatch):
 
 def test_found_has_no_nearest(calls):
     assert post({"question": "q"}).json()["nearest"] == []
+
+
+def test_rerank_skipped_flag(calls, monkeypatch):
+    def flag(rerank):
+        monkeypatch.setattr(main, "search", lambda *a, **kw: [replace(chunk(1), rerank=rerank)])
+        monkeypatch.setattr(main, "answer", lambda q, chunks: Answer("Yes [1].", True, [1]))
+        return post({"question": "q"}).json()["debug"]["rerank_skipped"]
+
+    assert flag(None) is True
+    assert flag(0.9) is False
 
 
 def test_retrieved_carries_title_and_location(calls):

@@ -1,5 +1,6 @@
 import logging
 import time
+from contextlib import asynccontextmanager
 from typing import Annotated, Literal
 
 import anthropic
@@ -9,12 +10,24 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, StringConstraints
 
 from core.db import connect
+from core.embeddings import model as embed_model
 from generate.answer import answer
+from retrieval.rerank import model as rerank_model
 from retrieval.search import search
 
 log = logging.getLogger(__name__)
 
-app = FastAPI(title="CourseLens")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load both models before serving, so a failed load stops startup instead of the first question.
+    embed_model()
+    rerank_model()
+    yield
+
+
+app = FastAPI(title="CourseLens", lifespan=lifespan)
 
 NOT_FOUND = "I couldn't find this in the course material."
 EXCERPT_CHARS = 300
@@ -85,9 +98,11 @@ def ask(req: AskRequest):
                     "keyword_rank": c.keyword_rank,
                     "keyword_score": c.keyword_score,
                     "rrf": c.rrf,
+                    "rerank": c.rerank,
                 }
                 for c in chunks
             ],
+            "rerank_skipped": bool(chunks) and chunks[0].rerank is None,
             "timings_ms": {"search": round((t1 - t0) * 1000), "generate": round((t2 - t1) * 1000)},
         },
     }

@@ -14,7 +14,11 @@ from core.db import connect
 from generate.answer import answer
 from retrieval.search import search
 
-CONFIGS: dict[str, dict] = {"vector": {"keyword": False}, "hybrid": {}}
+CONFIGS: dict[str, dict] = {
+    "vector": {"keyword": False, "rerank": None},
+    "hybrid": {"rerank": None},
+    "hybrid_rerank": {},
+}
 QUESTIONS = Path(__file__).parent / "questions.jsonl"
 RESULTS = Path(__file__).parent / "results"
 MAX_MATCHES = 3  # a quote matching more chunks than this is too generic to be gold
@@ -51,7 +55,7 @@ def first_gold_rank(ids: list[int], gold: set[int]) -> int | None:
 
 
 def run_config(conn, name, questions, gold_ids, answers):
-    search(conn, "warm up", **CONFIGS[name])  # untimed: loads the embedding model
+    search(conn, "warm up", **CONFIGS[name])  # untimed: loads the models
     # ponytail: retries so one API hiccup doesn't discard a whole paid run; a retried call
     # inflates that question's latency.
     client = anthropic.Anthropic(timeout=60.0, max_retries=3) if answers else None
@@ -66,6 +70,7 @@ def run_config(conn, name, questions, gold_ids, answers):
             "course": q["course"],
             "answerable": bool(q["gold"]),
             "rank": first_gold_rank([c.chunk_id for c in chunks], gold),
+            "top_rerank": chunks[0].rerank if chunks else None,
             "search_ms": search_ms,
         }
         if answers:

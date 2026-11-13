@@ -21,6 +21,7 @@ type Retrieved = {
   keyword_rank: number | null;
   keyword_score: number | null;
   rrf: number;
+  rerank: number | null;
 };
 
 type AskResponse = {
@@ -28,7 +29,7 @@ type AskResponse = {
   found: boolean;
   citations: Citation[];
   nearest: Citation[];
-  debug: { retrieved: Retrieved[] };
+  debug: { retrieved: Retrieved[]; rerank_skipped: boolean };
 };
 
 const rankCell = (
@@ -149,8 +150,14 @@ export default function Home() {
                 Each passage was found by meaning (vector search), by matching
                 words (keyword search), or both. The two rankings are merged with
                 reciprocal rank fusion (RRF): a passage ranked high in either list
-                rises to the top, and the top 5 are sent to the model.
+                rises to the top. The top 20 fused passages are then rescored by a
+                reranker that reads the question and each passage together, and the
+                top 5 are sent to the model, unless even the best one scores too low
+                to be worth asking.
               </p>
+              {result.debug.rerank_skipped && (
+                <p>The reranker was unavailable, so these are in fused order.</p>
+              )}
               <table style={{ borderSpacing: "1rem 0.25rem" }}>
                 <caption>Retrieved passages</caption>
                 <thead>
@@ -160,6 +167,7 @@ export default function Home() {
                     <th scope="col">Vector</th>
                     <th scope="col">Keyword</th>
                     <th scope="col">RRF</th>
+                    <th scope="col">Rerank</th>
                     <th scope="col">Cited</th>
                   </tr>
                 </thead>
@@ -181,6 +189,7 @@ export default function Home() {
                         )}
                       </td>
                       <td>{r.rrf.toFixed(4)}</td>
+                      <td>{r.rerank === null ? "–" : r.rerank.toPrecision(2)}</td>
                       <td>
                         {result.citations.some((c) => c.chunk_id === r.chunk_id)
                           ? "✓"
