@@ -89,3 +89,9 @@ def test_course_filter_applies_to_keyword(corpus):
     results = search(corpus, "harm", course="CPSC")
     assert [r.title for r in results] == ["recursion.txt"]
     assert results[0].keyword_rank is None
+
+
+def test_vector_only_skips_keyword(corpus):
+    results = search(corpus, "harm", keyword=False)
+    assert [r.vector_rank for r in results] == [1, 2]
+    assert all(r.keyword_rank is None for r in results)
