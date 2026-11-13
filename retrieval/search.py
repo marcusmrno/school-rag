@@ -62,6 +62,7 @@ def search(
     course: str | None = None,
     k: int = 5,
     embed: Embed = embed_documents,
+    keyword: bool = True,
 ) -> list[ScoredChunk]:
     # ponytail: HNSW applies the WHERE after finding its candidates (40 by default), so a small
     # course could get fewer than k rows; iterative scan keeps searching until k rows match.
@@ -69,11 +70,11 @@ def search(
     q = to_vector(embed([query])[0])
     params = {"course": course, "n": CANDIDATES}
     vector = conn.execute(VECTOR_SQL, {**params, "q": q}).fetchall()
-    keyword = conn.execute(KEYWORD_SQL, {**params, "query": query}).fetchall()
-    rows = {r[0]: r for r in keyword + vector}
+    kw = conn.execute(KEYWORD_SQL, {**params, "query": query}).fetchall() if keyword else []
+    rows = {r[0]: r for r in kw + vector}
     vrank = {r[0]: (i, r[6]) for i, r in enumerate(vector, 1)}
-    krank = {r[0]: (i, r[6]) for i, r in enumerate(keyword, 1)}
-    fused = rrf([[r[0] for r in vector], [r[0] for r in keyword]])
+    krank = {r[0]: (i, r[6]) for i, r in enumerate(kw, 1)}
+    fused = rrf([[r[0] for r in vector], [r[0] for r in kw]])
     return [
         ScoredChunk(
             *rows[id_][:6],
