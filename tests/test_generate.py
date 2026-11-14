@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+from pytest import approx
+
 from core import config
 from generate.answer import REFUSE_BELOW, Answer, answer, validate_citations
 from retrieval.search import ScoredChunk
@@ -10,10 +12,12 @@ def chunk(i, rerank=None):
 
 
 class FakeClient:
-    def __init__(self, text="", stop_reason="end_turn"):
+    def __init__(self, text="", stop_reason="end_turn", usage=(0, 0)):
         self.calls = []
         content = [SimpleNamespace(type="text", text=text)] if text else []
-        response = SimpleNamespace(stop_reason=stop_reason, content=content)
+        response = SimpleNamespace(
+            stop_reason=stop_reason, content=content, usage=SimpleNamespace(input_tokens=usage[0], output_tokens=usage[1])
+        )
         self.beta = SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: self.calls.append(kw) or response))
 
 
@@ -74,3 +78,14 @@ def test_no_rerank_score_still_calls_claude():
     client = FakeClient("Power may only prevent harm [1].")
     assert answer("q", [chunk(1)], client).found
     assert len(client.calls) == 1
+
+
+def test_cost_from_usage():
+    result = answer("q", [chunk(1)], FakeClient("Yes [1].", usage=(1_000_000, 100_000)))
+    assert result.cost_usd == approx(3.0)
+
+
+def test_not_found_reply_still_carries_cost():
+    result = answer("q", [chunk(1)], FakeClient("NOT_FOUND", usage=(1_000_000, 0)))
+    assert not result.found
+    assert result.cost_usd == approx(2.0)

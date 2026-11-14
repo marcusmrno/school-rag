@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 
 import psycopg
 
+from core import config
 from core.db import to_vector
 from core.embeddings import embed_documents
 from ingest.pipeline import Embed
@@ -32,7 +33,6 @@ class ScoredChunk:
 
 CANDIDATES = 20  # per-list candidates fed into the fusion
 RRF_K = 60
-RERANK_CANDIDATES = 20  # fused results rescored by the reranker
 
 VECTOR_SQL = """
 SELECT c.id, d.title, c.location, c.course, d.source_url, c.content,
@@ -92,7 +92,7 @@ def search(
             *krank.get(id_, (None, None)),
             rrf=score,
         )
-        for id_, score in list(fused.items())[:RERANK_CANDIDATES if rerank else k]
+        for id_, score in list(fused.items())[:config.RERANK_CANDIDATES if rerank else k]
     ]
     if rerank and chunks:
         try:

@@ -1,14 +1,17 @@
 import logging
+import threading
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from typing import Annotated, Literal
 
 import anthropic
 import psycopg
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, StringConstraints
 
+from api.limits import RateLimiter, add_spend, client_ip, spent_today
+from core import config
 from core.db import connect
 from core.embeddings import model as embed_model
 from generate.answer import answer
@@ -28,6 +31,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="CourseLens", lifespan=lifespan)
+
+limiter = RateLimiter([(10, 600), (50, 86_400)])
 
 NOT_FOUND = "I couldn't find this in the course material."
 EXCERPT_CHARS = 300
@@ -65,15 +70,31 @@ def _source(n: int, c) -> dict:
     }
 
 
+BUDGET_USED = "demo budget used up for today, try tomorrow"
+# ponytail: one Claude call at a time, re-checking the budget inside the lock, so a burst of
+# requests can't all pass the check before any spend is recorded. Serialises answers on the single
+# instance; reserving an estimated cost in the database first is the upgrade for more instances.
+_paid = threading.Lock()
+
 @app.post("/ask")
-def ask(req: AskRequest):
+def ask(req: AskRequest, request: Request):
+    public = config.MODE != "private"  # a typo in MODE keeps the limits on
+    if public and not limiter.allow(client_ip(request)):
+        return JSONResponse({"detail": "Too many questions. Try again in a few minutes."}, status_code=429)
     try:
-        t0 = time.perf_counter()
         with connect() as conn:
+            if public and spent_today(conn) >= config.DAILY_BUDGET_USD:
+                return JSONResponse({"detail": BUDGET_USED}, status_code=503)
+            t0 = time.perf_counter()
             chunks = search(conn, req.question, req.course)
-        t1 = time.perf_counter()
-        result = answer(req.question, chunks)
-        t2 = time.perf_counter()
+            t1 = time.perf_counter()
+            with _paid if public else nullcontext():
+                if public and spent_today(conn) >= config.DAILY_BUDGET_USD:
+                    return JSONResponse({"detail": BUDGET_USED}, status_code=503)
+                result = answer(req.question, chunks)
+                if public and result.cost_usd > 0:
+                    add_spend(conn, result.cost_usd)
+            t2 = time.perf_counter()
     except psycopg.OperationalError:
         return JSONResponse({"detail": "database unreachable"}, status_code=503)
     except anthropic.APIError:

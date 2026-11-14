@@ -24,3 +24,5 @@ CREATE TABLE chunks (
 CREATE INDEX ON chunks USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX ON chunks USING gin (tsv);
 CREATE INDEX ON chunks (course);
+
+CREATE TABLE IF NOT EXISTS spend (day DATE PRIMARY KEY, usd NUMERIC NOT NULL DEFAULT 0);

@@ -1,4 +1,5 @@
 import contextlib
+from types import SimpleNamespace
 from dataclasses import replace
 
 import anthropic
@@ -8,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import api.main as main
+from api.limits import RateLimiter
 from generate.answer import Answer
 from retrieval.search import ScoredChunk
 
@@ -19,6 +21,7 @@ def chunk(i, content=None):
 @pytest.fixture
 def calls(monkeypatch):
     seen = []
+    monkeypatch.setattr(main.config, "MODE", "private")
     monkeypatch.setattr(main, "connect", lambda: contextlib.nullcontext())
     monkeypatch.setattr(main, "search", lambda *a, **kw: seen.append((a, kw)) or [chunk(1), chunk(2)])
     monkeypatch.setattr(main, "answer", lambda q, chunks: Answer("Only to prevent harm [2].", True, [2]))
@@ -106,6 +109,7 @@ def test_claude_failure_returns_503(calls, monkeypatch):
 
 
 def test_db_down_returns_503(monkeypatch):
+    monkeypatch.setattr(main.config, "MODE", "private")
     def down():
         raise psycopg.OperationalError("connection refused")
 
@@ -120,3 +124,71 @@ def test_db_down_returns_503(monkeypatch):
 def test_rejects_bad_requests(calls, body):
     assert post(body).status_code == 422
     assert calls == []
+
+
+@pytest.fixture
+def public(calls, monkeypatch):
+    monkeypatch.setattr(main.config, "MODE", "public")
+    monkeypatch.setattr(main, "limiter", RateLimiter([(10, 600)]))
+    monkeypatch.setattr(main, "spent_today", lambda conn: 0.0)
+    added = []
+    monkeypatch.setattr(main, "add_spend", lambda conn, usd: added.append(usd))
+    return added
+
+
+def test_eleventh_question_is_rate_limited(public, monkeypatch):
+    monkeypatch.setattr(main, "answer", lambda q, chunks: Answer("", False, [], 0.0))
+    assert [post({"question": "q"}).status_code for _ in range(10)] == [200] * 10
+    r = post({"question": "q"})
+    assert r.status_code == 429
+    assert r.json()["detail"] == "Too many questions. Try again in a few minutes."
+
+
+def test_budget_used_up_returns_503(public, calls, monkeypatch):
+    monkeypatch.setattr(main, "spent_today", lambda conn: 0.30)
+    r = post({"question": "q"})
+    assert r.status_code == 503
+    assert r.json()["detail"] == "demo budget used up for today, try tomorrow"
+    assert calls == []
+
+
+def test_budget_rechecked_right_before_claude(public, monkeypatch):
+    # another request recorded spend while this one was searching
+    seen = iter([0.0, 0.30])
+    monkeypatch.setattr(main, "spent_today", lambda conn: next(seen))
+    asked = []
+    monkeypatch.setattr(main, "answer", lambda q, chunks: asked.append(q))
+    r = post({"question": "q"})
+    assert r.status_code == 503
+    assert r.json()["detail"] == "demo budget used up for today, try tomorrow"
+    assert asked == []
+
+
+def test_mode_typo_keeps_limits_on(public, monkeypatch):
+    monkeypatch.setattr(main.config, "MODE", "pubilc")
+    monkeypatch.setattr(main, "spent_today", lambda conn: 0.30)
+    assert post({"question": "q"}).status_code == 503
+
+
+def test_spend_recorded_after_answer(public, monkeypatch):
+    monkeypatch.setattr(main, "answer", lambda q, chunks: Answer("Yes [1].", True, [1], 0.012))
+    post({"question": "q"})
+    assert public == [0.012]
+    monkeypatch.setattr(main, "answer", lambda q, chunks: Answer("", False, [], 0.0))
+    post({"question": "q"})
+    assert public == [0.012]
+
+
+def test_claude_error_records_no_spend(public, monkeypatch):
+    def boom(q, chunks):
+        raise anthropic.APITimeoutError(request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"))
+
+    monkeypatch.setattr(main, "answer", boom)
+    assert post({"question": "q"}).status_code == 503
+    assert public == []
+
+
+def test_private_mode_skips_limits(public, monkeypatch):
+    monkeypatch.setattr(main.config, "MODE", "private")
+    monkeypatch.setattr(main, "limiter", SimpleNamespace(allow=lambda key: False))
+    assert post({"question": "q"}).status_code == 200

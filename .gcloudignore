@@ -1,0 +1,9 @@
+/*
+!/Dockerfile
+!/requirements.txt
+!/api/
+!/core/
+!/generate/
+!/ingest/
+!/retrieval/
+__pycache__/
