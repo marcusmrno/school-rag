@@ -1,10 +1,17 @@
-from dataclasses import dataclass
+import logging
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 
 import psycopg
 
 from core.db import to_vector
 from core.embeddings import embed_documents
 from ingest.pipeline import Embed
+from retrieval.rerank import rerank_scores
+
+log = logging.getLogger(__name__)
+
+Rerank = Callable[[str, list[str]], list[float]]
 
 
 @dataclass(frozen=True)
@@ -20,10 +27,12 @@ class ScoredChunk:
     keyword_rank: int | None = None  # 1-based
     keyword_score: float | None = None  # ts_rank_cd
     rrf: float = 0.0  # fused score
+    rerank: float | None = None  # cross-encoder score, 0-1
 
 
 CANDIDATES = 20  # per-list candidates fed into the fusion
 RRF_K = 60
+RERANK_CANDIDATES = 20  # fused results rescored by the reranker
 
 VECTOR_SQL = """
 SELECT c.id, d.title, c.location, c.course, d.source_url, c.content,
@@ -63,6 +72,7 @@ def search(
     k: int = 5,
     embed: Embed = embed_documents,
     keyword: bool = True,
+    rerank: Rerank | None = rerank_scores,
 ) -> list[ScoredChunk]:
     # ponytail: HNSW applies the WHERE after finding its candidates (40 by default), so a small
     # course could get fewer than k rows; iterative scan keeps searching until k rows match.
@@ -75,12 +85,25 @@ def search(
     vrank = {r[0]: (i, r[6]) for i, r in enumerate(vector, 1)}
     krank = {r[0]: (i, r[6]) for i, r in enumerate(kw, 1)}
     fused = rrf([[r[0] for r in vector], [r[0] for r in kw]])
-    return [
+    chunks = [
         ScoredChunk(
             *rows[id_][:6],
             *vrank.get(id_, (None, None)),
             *krank.get(id_, (None, None)),
             rrf=score,
         )
-        for id_, score in list(fused.items())[:k]
+        for id_, score in list(fused.items())[:RERANK_CANDIDATES if rerank else k]
     ]
+    if rerank and chunks:
+        try:
+            scores = rerank(query, [c.content for c in chunks])
+            # stable sort: ties keep fused order
+            chunks = sorted(
+                (replace(c, rerank=s) for c, s in zip(chunks, scores, strict=True)),
+                key=lambda c: c.rerank,
+                reverse=True,
+            )
+        # ponytail: broad except hides any reranker error behind fused order; the log is where to look.
+        except Exception:
+            log.exception("rerank failed, using fused order")
+    return chunks[:k]

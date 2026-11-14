@@ -1,12 +1,12 @@
 from types import SimpleNamespace
 
 from core import config
-from generate.answer import Answer, answer, validate_citations
+from generate.answer import REFUSE_BELOW, Answer, answer, validate_citations
 from retrieval.search import ScoredChunk
 
 
-def chunk(i):
-    return ScoredChunk(i, "On Liberty", f"CHAPTER I, ¶ {i}", "PHIL", None, f"text {i}", i, 0.5)
+def chunk(i, rerank=None):
+    return ScoredChunk(i, "On Liberty", f"CHAPTER I, ¶ {i}", "PHIL", None, f"text {i}", i, 0.5, rerank=rerank)
 
 
 class FakeClient:
@@ -62,3 +62,15 @@ def test_request_numbers_sources_and_uses_config_model():
     assert user.index('<source n="1"') < user.index('<source n="2"') < user.index("What is harm?")
     assert 'location="CHAPTER I, ¶ 2"' in user
     assert call["fallbacks"] == "default"
+
+
+def test_weak_top_rerank_skips_claude():
+    client = FakeClient("Power may only prevent harm [1].")
+    assert answer("q", [chunk(1, rerank=REFUSE_BELOW / 2)], client) == Answer("", False, [])
+    assert client.calls == []
+
+
+def test_no_rerank_score_still_calls_claude():
+    client = FakeClient("Power may only prevent harm [1].")
+    assert answer("q", [chunk(1)], client).found
+    assert len(client.calls) == 1

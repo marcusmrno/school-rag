@@ -26,7 +26,7 @@ def corpus(conn, tmp_path):
 
 
 def test_relevant_chunk_ranks_first(corpus):
-    results = search(corpus, "When can the state interfere with someone's freedom?")
+    results = search(corpus, "When can the state interfere with someone's freedom?", rerank=None)
     assert [r.title for r in results] == ["harm.txt", "recursion.txt"]
     assert [r.vector_rank for r in results] == [1, 2]
     assert results[0].vector_score > results[1].vector_score
@@ -34,16 +34,16 @@ def test_relevant_chunk_ranks_first(corpus):
 
 
 def test_course_filter(corpus):
-    results = search(corpus, "When can the state interfere with someone's freedom?", course="CPSC")
+    results = search(corpus, "When can the state interfere with someone's freedom?", course="CPSC", rerank=None)
     assert [r.title for r in results] == ["recursion.txt"]
 
 
 def test_course_with_no_chunks_returns_empty(corpus):
-    assert search(corpus, "What is a base case?", course="ENGL") == []
+    assert search(corpus, "What is a base case?", course="ENGL", rerank=None) == []
 
 
 def test_k_limits_results(corpus):
-    assert len(search(corpus, "What is a base case?", k=1)) == 1
+    assert len(search(corpus, "What is a base case?", k=1, rerank=None)) == 1
 
 
 def recursion_like(texts):  # stub query embedding: always the recursion text's vector
@@ -51,7 +51,7 @@ def recursion_like(texts):  # stub query embedding: always the recursion text's 
 
 
 def test_keyword_match_adds_keyword_rank(corpus):
-    results = search(corpus, "harm")
+    results = search(corpus, "harm", rerank=None)
     assert [r.title for r in results] == ["harm.txt", "recursion.txt"]
     assert results[0].keyword_rank == 1 and results[0].keyword_score > 0
     assert results[1].keyword_rank is None and results[1].keyword_score is None
@@ -60,38 +60,64 @@ def test_keyword_match_adds_keyword_rank(corpus):
 
 
 def test_keyword_match_overtakes_vector_order(corpus):
-    results = search(corpus, "harming other people", embed=recursion_like)
+    results = search(corpus, "harming other people", embed=recursion_like, rerank=None)
     assert [r.title for r in results] == ["harm.txt", "recursion.txt"]
     assert [r.vector_rank for r in results] == [2, 1]
 
 
 def test_keyword_only_match_is_returned(corpus, monkeypatch):
     monkeypatch.setattr(rs, "CANDIDATES", 1)
-    results = search(corpus, "harming other people", embed=recursion_like)
+    results = search(corpus, "harming other people", embed=recursion_like, rerank=None)
     harm = next(r for r in results if r.title == "harm.txt")
     assert harm.vector_rank is None and harm.vector_score is None
     assert harm.keyword_rank == 1 and "liberty" in harm.content
 
 
 def test_stopword_only_query_falls_back_to_vector(corpus):
-    results = search(corpus, "What is it?")
+    results = search(corpus, "What is it?", rerank=None)
     assert len(results) == 2
     assert all(r.keyword_rank is None for r in results)
     assert [r.vector_rank for r in results] == [1, 2]
 
 
 def test_punctuation_in_query_does_not_raise(corpus):
-    results = search(corpus, '"harm" -(OR & |!')
+    results = search(corpus, '"harm" -(OR & |!', rerank=None)
     assert results[0].title == "harm.txt" and results[0].keyword_rank == 1
 
 
 def test_course_filter_applies_to_keyword(corpus):
-    results = search(corpus, "harm", course="CPSC")
+    results = search(corpus, "harm", course="CPSC", rerank=None)
     assert [r.title for r in results] == ["recursion.txt"]
     assert results[0].keyword_rank is None
 
 
 def test_vector_only_skips_keyword(corpus):
-    results = search(corpus, "harm", keyword=False)
+    results = search(corpus, "harm", keyword=False, rerank=None)
     assert [r.vector_rank for r in results] == [1, 2]
     assert all(r.keyword_rank is None for r in results)
+
+
+QUESTION = "When can the state interfere with someone's freedom?"
+
+
+def test_rerank_reorders_and_scores(corpus):
+    flip = lambda q, ps: [float(i) for i in range(len(ps))]  # last candidate scores highest
+    results = search(corpus, QUESTION, rerank=flip)
+    assert [r.rerank for r in results] == sorted([r.rerank for r in results], reverse=True)
+    assert results[0].rrf < results[-1].rrf  # fused order was reversed
+
+
+def test_rerank_error_falls_back_to_fused_order(corpus):
+    def boom(q, ps):
+        raise RuntimeError("model gone")
+
+    assert [r.chunk_id for r in search(corpus, QUESTION, rerank=boom)] == [
+        r.chunk_id for r in search(corpus, QUESTION, rerank=None)
+    ]
+    assert all(r.rerank is None for r in search(corpus, QUESTION, rerank=boom))
+
+
+def test_rerank_with_fewer_candidates_than_pool(corpus):
+    seen = []
+    search(corpus, QUESTION, rerank=lambda q, ps: seen.append(len(ps)) or [0.5] * len(ps))
+    assert seen == [2]  # the 2-doc corpus, no padding

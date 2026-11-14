@@ -15,6 +15,10 @@ SYSTEM_PROMPT = """You answer questions about course material using only the num
 - If the sources do not contain the answer, reply with exactly NOT_FOUND and nothing else.
 - Answer in plain prose, at most two short paragraphs, with no headings or lists."""
 
+# Set from the eval data: the lowest top rerank score among answerable questions (0.0056), halved
+# and rounded down. Below it the best passage is too weak to be worth a Claude call.
+REFUSE_BELOW = 0.002
+
 MARKER = re.compile(r"(\s*)\[(\d+(?:\s*,\s*\d+)*)\]")
 
 
@@ -44,7 +48,7 @@ def validate_citations(text: str, n_chunks: int) -> tuple[str, list[int]]:
 
 def answer(question: str, chunks: list[ScoredChunk], client=None) -> Answer:
     not_found = Answer("", False, [])
-    if not chunks:
+    if not chunks or (chunks[0].rerank is not None and chunks[0].rerank < REFUSE_BELOW):
         return not_found
     sources = "\n".join(
         f'<source n="{i}" title="{c.title}" location="{c.location}">\n{c.content}\n</source>'
