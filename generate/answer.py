@@ -22,11 +22,16 @@ REFUSE_BELOW = 0.002
 MARKER = re.compile(r"(\s*)\[(\d+(?:\s*,\s*\d+)*)\]")
 
 
+# claude-sonnet-5-5 list price in USD per million tokens (input, output).
+PRICE_PER_MTOK = (2.0, 10.0)
+
+
 @dataclass(frozen=True)
 class Answer:
     text: str
     found: bool
     cited: list[int]
+    cost_usd: float = 0.0
 
 
 @cache
@@ -65,8 +70,10 @@ def answer(question: str, chunks: list[ScoredChunk], client=None) -> Answer:
         betas=["server-side-fallback-2026-07-01"],
         fallbacks="default",
     )
+    cost = (response.usage.input_tokens * PRICE_PER_MTOK[0] + response.usage.output_tokens * PRICE_PER_MTOK[1]) / 1e6
+    not_found = Answer("", False, [], cost)
     if response.stop_reason == "refusal":
         return not_found
     text = "".join(b.text for b in response.content if b.type == "text").strip()
     text, cited = validate_citations(text, len(chunks))
-    return Answer(text, True, cited) if cited else not_found
+    return Answer(text, True, cited, cost) if cited else not_found

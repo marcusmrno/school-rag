@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Citation = {
   n: number;
@@ -44,6 +44,11 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AskResponse | null>(null);
+
+  // wake the API and database while the visitor types
+  useEffect(() => {
+    fetch("/api/health").catch(() => {});
+  }, []);
 
   async function ask(e: React.FormEvent) {
     e.preventDefault();

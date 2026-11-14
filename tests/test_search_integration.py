@@ -1,6 +1,7 @@
 import pytest
 from pytest import approx
 
+from core import config
 from core.embeddings import embed_documents
 from ingest.pipeline import ingest_file
 import retrieval.search as rs
@@ -121,3 +122,10 @@ def test_rerank_with_fewer_candidates_than_pool(corpus):
     seen = []
     search(corpus, QUESTION, rerank=lambda q, ps: seen.append(len(ps)) or [0.5] * len(ps))
     assert seen == [2]  # the 2-doc corpus, no padding
+
+
+def test_rerank_pool_follows_config(corpus, monkeypatch):
+    monkeypatch.setattr(config, "RERANK_CANDIDATES", 1)
+    seen = []
+    search(corpus, QUESTION, rerank=lambda q, ps: seen.append(len(ps)) or [0.5] * len(ps))
+    assert seen == [1]
