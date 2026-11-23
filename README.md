@@ -2,7 +2,7 @@
 
 Ask questions about course material and get answers cited to the exact paragraph or slide. It's a hand-built retrieval-augmented generation (RAG) app over a public corpus of philosophy texts, English literature and computer science slides: hybrid search in Postgres, a local reranker, and Claude writing answers that cite the passages they use.
 
-**Live demo: https://school-rag-blond.vercel.app**
+**Live demo: https://courselens-rag.vercel.app**
 
 The API scales to zero when nobody is using it. On a first visit after a quiet spell it takes about 70 s to wake up (the page starts waking it as soon as it loads). The first question after that takes about 13 s, and later ones about 5–6 s. Each visitor can ask 10 questions per 10 minutes and 50 per day.
 
