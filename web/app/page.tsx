@@ -155,10 +155,10 @@ export default function Home() {
                 Each passage was found by meaning (vector search), by matching
                 words (keyword search), or both. The two rankings are merged with
                 reciprocal rank fusion (RRF): a passage ranked high in either list
-                rises to the top. The top 20 fused passages are then rescored by a
+                rises to the top. The top fused passages are then rescored by a
                 reranker that reads the question and each passage together, and the
-                top 5 are sent to the model, unless even the best one scores too low
-                to be worth asking.
+                best 5 are sent to the model, unless even the best one scores too
+                low to be worth asking.
               </p>
               {result.debug.rerank_skipped && (
                 <p>The reranker was unavailable, so these are in fused order.</p>
