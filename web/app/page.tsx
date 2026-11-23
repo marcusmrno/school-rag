@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 type Citation = {
   n: number;
@@ -39,10 +39,40 @@ const COURSES = [
   ["CPSC", "Computer science"],
 ] as const;
 
-const EXAMPLES = [
-  { question: "What is the harm principle?", course: "PHIL" },
-  { question: "Why does the creature say he became violent?", course: "ENGL" },
-  { question: "Can I change one letter of a Python string in place?", course: "CPSC" },
+// ponytail: mirrors the ingested corpus by hand; update it if texts are added. Each question
+// retrieves its gold passage first with the live settings (RERANK_CANDIDATES=5, course filter on).
+const LIBRARY = [
+  {
+    course: "PHIL",
+    label: "Philosophy",
+    texts: [
+      { title: "On Liberty", by: "John Stuart Mill", question: "What is the harm principle?" },
+      { title: "Utilitarianism", by: "John Stuart Mill", question: "Does Mill think all pleasures count the same, or can some be worth more than others?" },
+      { title: "An Enquiry Concerning Human Understanding", by: "David Hume", question: "Why do we expect the future to resemble the past, according to Hume?" },
+      { title: "Discourse on the Method", by: "René Descartes", question: "In Descartes' provisional code of conduct, how should someone act when they must choose but cannot be certain?" },
+    ],
+  },
+  {
+    course: "ENGL",
+    label: "English",
+    texts: [
+      { title: "Frankenstein", by: "Mary Shelley", question: "In the letter that reaches Victor from home, who has died and how is the news broken to him?" },
+      { title: "Heart of Darkness", by: "Joseph Conrad", question: "How does Marlow describe the river on the map that fascinated him as a boy?" },
+      { title: "Strange Case of Dr Jekyll and Mr Hyde", by: "Robert Louis Stevenson", question: "How does Hyde kill the old gentleman, and who sees it happen?" },
+    ],
+  },
+  {
+    course: "CPSC",
+    label: "Computer science",
+    texts: [
+      { title: "Strings, input/output, and branching", by: "MIT 6.100L, lecture 2", question: "Can I change one letter of a Python string in place?" },
+      { title: "Iteration", by: "MIT 6.100L, lecture 3", question: "What do the arguments to range() mean, and which ones can be left out?" },
+      { title: "Decomposition, abstraction, and functions", by: "MIT 6.100L, lecture 7", question: "What role does a docstring play for a function?" },
+      { title: "Lambda functions, tuples, and lists", by: "MIT 6.100L, lecture 9", question: "How do I write a function that accepts any number of arguments?" },
+      { title: "Dictionaries", by: "MIT 6.100L, lecture 14", question: "What happens when I look up a key that is not in a dictionary?" },
+      { title: "Python classes", by: "MIT 6.100L, lecture 17", question: "How is a method different from an ordinary function, and what is its first parameter?" },
+    ],
+  },
 ];
 
 // same marker shapes generate/answer.py accepts: [2] or [1, 3]
@@ -87,6 +117,8 @@ export default function Home() {
   const [result, setResult] = useState<AskResponse | null>(null);
   const [asked, setAsked] = useState("");
   const [active, setActive] = useState<number | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const libraryRef = useRef<HTMLDetailsElement>(null);
 
   // wake the API and database while the visitor types; say so if it's slow
   useEffect(() => {
@@ -133,8 +165,38 @@ export default function Home() {
   function tryExample(q: string, c: string) {
     setQuestion(q);
     setCourse(c);
+    setLibraryOpen(false);
     ask(q, c);
   }
+
+  function showLibrary() {
+    setLibraryOpen(true);
+    requestAnimationFrame(() => libraryRef.current?.scrollIntoView({ block: "start" }));
+  }
+
+  const library = (
+    <div className="library">
+      {LIBRARY.map((group) => (
+        <section key={group.course} aria-labelledby={`lib-${group.course}`}>
+          <h3 id={`lib-${group.course}`}>
+            <span className="dot" style={{ background: `var(--${group.course})` }} aria-hidden="true" />
+            {group.label}
+          </h3>
+          <ul>
+            {group.texts.map((t) => (
+              <li key={t.title}>
+                <span className="lib-title">{t.title}</span>
+                <span className="lib-by">{t.by}</span>
+                <button type="button" className="lib-q" onClick={() => tryExample(t.question, group.course)}>
+                  {t.question}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
 
   const terms = questionTerms(asked);
   const cited = new Set(result?.citations.map((c) => c.chunk_id));
@@ -248,14 +310,17 @@ export default function Home() {
           {loading ? "Asking…" : "Ask"}
         </button>
       </form>
-      <div className="tries">
-        <span>Try</span>
-        {EXAMPLES.map((ex) => (
-          <button key={ex.question} type="button" onClick={() => tryExample(ex.question, ex.course)}>
-            {ex.question}
-          </button>
-        ))}
-      </div>
+      {(result || error) && (
+        <details
+          ref={libraryRef}
+          className="covers"
+          open={libraryOpen}
+          onToggle={(e) => setLibraryOpen(e.currentTarget.open)}
+        >
+          <summary>What the readings cover</summary>
+          {library}
+        </details>
+      )}
       {waking && (
         <p className="notice" role="status">
           Starting the server. The first question after a quiet spell can take about a minute.
@@ -266,6 +331,16 @@ export default function Home() {
         <p className="error" role="alert">
           {error}
         </p>
+      )}
+
+      {!result && !loading && !error && (
+        <section className="result start" aria-labelledby="start-heading">
+          <h2 id="start-heading">What you can ask about</h2>
+          <p className="lede">
+            Answers come from these texts and lectures. Pick a question to try one, or ask your own.
+          </p>
+          {library}
+        </section>
       )}
 
       {loading && (
@@ -293,7 +368,10 @@ export default function Home() {
           <h2>The readings don&apos;t cover this</h2>
           <p>
             Nothing in the course material answers this question.
-            {result.nearest.length > 0 && " These passages came closest, in case one helps."}
+            {result.nearest.length > 0 && " These passages came closest, in case one helps."}{" "}
+            <button type="button" className="linkish" onClick={showLibrary}>
+              See what the readings cover
+            </button>
           </p>
           {result.nearest.map((c) => note(c, false))}
           {debugPanel(result, cited)}
